@@ -3,6 +3,7 @@ Strict
 Import fairlight
 Import level
 Import playerinput
+Import stone
 
 Class Player
     Const IDLE% = 0
@@ -22,14 +23,14 @@ Class Player
     Const ACCELERATION_MOMENTUM# = 0.7
     Const ACCELERATION# = 0.4
 
-    Const GRAVITY# = 0.3
-
     Const MAX_VELOCITY_Y# = 32.0
     Const MAX_VELOCITY_X# = 8
 
+    Global img:Image
+
     Field input:PlayerInput
     Field level:Level
-    Field img:Image
+
     Field position:Vector2D
     Field frame# = 0
 
@@ -45,8 +46,11 @@ Class Player
 
     Field jumpVelo# = 0
 
-    Method New()
-        img = LoadImage("gfx/player.png", 32, 32, 4)
+    Field stone:Stone
+
+    Method New(l:Level)
+        level = l
+
         img.SetHandle(img.Width() / 2, img.Height())
         position = Vector2D.Zero()
         lastRestart = Vector2D.Zero()
@@ -58,10 +62,12 @@ Class Player
         velocity = Vector2D.Zero()
 
         input = New PlayerInput()
+
+        stone = New Stone(level)
     End
 
     Method UpdatePlayerBox:Void()
-        SetPlayerBoxTo(playerBox.point.x, playerBox.point.y)
+        SetPlayerBoxTo(position.x, position.y)
     End
 
     Method SetPlayerBoxTo:Void(x#, y#)
@@ -71,20 +77,20 @@ Class Player
 
     Method Restart:Void(x% = -1, y% = -1)
         If (x = -1 Or y = -1)
-            Local playerStartPosition := level.tilemap.GetLayer("map").GetNextTileXY(TileIds.ID_START_PLAYER, 0, 0)        
+            Local playerStartPosition := level.tilemap.GetLayer("objects").GetNextTileXY(TileIds.START_PLAYER, 0, 0)        
             lastRestart.x = playerStartPosition[0]
             lastRestart.y = playerStartPosition[1]
         End
 
-        level.tilemap.GetLayer("map").x = lastRestart.x * level.tilemap.tileWidth - BaseApplication.GetInstance().virtualDisplay.virtualWidth / 2
-        level.tilemap.GetLayer("map").y = lastRestart.y * level.tilemap.tileHeight - BaseApplication.GetInstance().virtualDisplay.virtualHeight / 2
-        level.tilemap.GetLayer("map").SetTile(lastRestart.x, lastRestart.y, 0)
+        level.tilemap.GetLayer("objects").x = lastRestart.x * level.tilemap.tileWidth - BaseApplication.GetInstance().virtualDisplay.virtualWidth / 2
+        level.tilemap.GetLayer("objects").y = lastRestart.y * level.tilemap.tileHeight - BaseApplication.GetInstance().virtualDisplay.virtualHeight / 2
+        level.tilemap.GetLayer("objects").SetTile(lastRestart.x, lastRestart.y, 0)
         position.x = lastRestart.x * level.tilemap.tileWidth  + level.tilemap.tileWidth / 2
         position.y = lastRestart.y * level.tilemap.tileHeight + level.tilemap.tileHeight
     End
 
     Method UpdatePhysics:Void()
-        If (jumpVelo < 2) Then velocity.y += GRAVITY
+        If (jumpVelo < 2) Then velocity.y += Level.GRAVITY
         If (velocity.y > MAX_VELOCITY_Y) Then velocity.y = MAX_VELOCITY_Y
     End
 
@@ -144,11 +150,11 @@ Class Player
 
         Local jumping% = velocity.y - jumpVelo
         If (jumping < 0)
-            Local box := level.blockLayer.IntersectRect(playerBox.point.x + 1, playerBox.point.y + 1, playerBox.size.x - 2, playerBox.size.y - 2)
+            Local box := level.IntersectRectWithBlock(playerBox.point.x + 1, playerBox.point.y + 1, playerBox.size.x - 2, playerBox.size.y - 2)
             If (box) 'collision with block
                 jumpVelo = 0
                 velocity.y = 0
-                nextY = position.y
+                nextY = box.rect.point.y + box.rect.size.y + img.Height()
             End
         End
 
@@ -171,7 +177,7 @@ Class Player
 
         SetPlayerBoxTo(nextX, position.y)
 
-        Local box := level.blockLayer.IntersectRect(playerBox.point.x + 1, playerBox.point.y + 1, playerBox.size.x - 2, playerBox.size.y - 2)
+        Local box := level.IntersectRectWithBlock(playerBox.point.x + 1, playerBox.point.y + 1, playerBox.size.x - 2, playerBox.size.y - 2)
         If (box)
             If (velocity.x <> 0)
                 nextX = position.x
@@ -198,6 +204,30 @@ Class Player
     End
 
     Method CheckCollisions:Void()
+        Local posX := position.x
+        Local posY := position.y - 8
+        Local tileId := level.tilemap.GetLayer("objects").GetTileFromPixel(posX, posY)
+        Select tileId
+            Case TileIds.STONE
+                stone.isInInventory = True
+                level.tilemap.GetLayer("objects").SetTileAtPixel(posX, posY, 0)
+        End
+
+        UpdatePlayerBox()
+        If Rect.Intersect(playerBox.point.x, playerBox.point.y, playerBox.size.x, playerBox.size.y, stone.position.x, stone.position.y, 1, 1)                    
+            If (stone.IsCollectable())
+                stone.isInInventory = True        
+            End
+        Else
+            stone.collectable = True
+        End
+    End
+
+    Method UpdateStone:Void(delta#)
+        If (stone.isInInventory And input.fire)
+            stone.ThrowIt()
+        End
+        stone.OnUpdate(delta)
     End
 
     Method OnUpdate:Void(delta#)
@@ -207,6 +237,7 @@ Class Player
             CheckYMovement()
             CheckXMovement()
             CheckCollisions()
+            UpdateStone(delta)
 
             If (position.y > (level.tilemap.height * level.tilemap.tileHeight)) Then Die()
         Else
@@ -222,6 +253,7 @@ Class Player
     Const WALK_FRAME_FIRST% = 1.0
     Const WALK_FRAME_LAST% = WALK_FRAME_FIRST + WALK_FRAMES
     Const FRAME_JUMPING% = 1
+    Const FRAME_FALLING% = 1
     Const FRAME_DYING% = 2
     Const WALK_ANIMSPEED# = 0.15
 
@@ -238,7 +270,11 @@ Class Player
         Else If (state = IDLE)
             frame = FRAME_STANDING
         Else If (state = JUMP)
-            frame = FRAME_JUMPING
+            If (Floor(jumpVelo) = 0)
+                frame = FRAME_FALLING
+            Else
+                frame = FRAME_JUMPING
+            End
         Else If (state = DYING)
             frame = FRAME_DYING
         End
@@ -250,15 +286,24 @@ Class Player
     End
 
     Method OnRender:Void()
+
         If (direction = DIR_RIGHT)
             DrawImage(img, position.x, position.y, frame)
         Else
             DrawImage(img, position.x, position.y, 0.0, -1.0, 1.0, frame)
         End
 
-'        SetAlpha(0.2)
-'        DrawRect(playerBox.point.x, playerBox.point.y, playerBox.size.x, playerBox.size.y)
-'        SetAlpha(1)
+        stone.OnRender()
+#rem
+        SetAlpha(0.2)
+        SetColor(255,0,0)
+        UpdatePlayerBox()
+        DrawRect(playerBox.point.x, playerBox.point.y, playerBox.size.x, playerBox.size.y)
+        SetColor(0,0,255)
+        DrawRect(stone.position.x, stone.position.y, stone.img.Width(), stone.img.Height())
+        SetAlpha(1)
+#end
+
     End
 
     Method Die:Void()
