@@ -29,7 +29,10 @@ Class Coin Extends GameObject
             position.x += Self.delta.x / 16.0
             position.y += Self.delta.y / 16.0
             stp += 1
-            If (stp > 16) Then level.gameObjects.Remove(Self)
+            If (stp > 16) 
+                level.player.coins += 1
+                level.gameObjects.Remove(Self)
+            End
         Else
             stp += 1
             position.y += Sin(stp) * 0.1

@@ -46,6 +46,8 @@ Class Player
 
     Field jumpVelo# = 0
 
+    Field coins% = 0
+
     Field stone:Stone
 
     Method New(l:Level)
@@ -132,6 +134,21 @@ Class Player
         'player is falling
         If (Floor(jumpVelo) = 0)
             state = JUMP
+
+            Local boxesBlocks := level.IntersectAllRectsWithBlock(playerBox.point.x + 1, playerBox.point.y + 1, playerBox.size.x - 2, playerBox.size.y + 1)
+            For Local box := EachIn boxesBlocks
+                If (Door(box.object))
+                    nextY = Int(box.rect.point.y - Door.SPEED)
+                    velocity.y = 0
+                    SetPlayerBoxTo(position.x, nextY)     
+                    state = IDLE        
+                    Local box := level.IntersectRectWithBlock(playerBox.point.x + 1, playerBox.point.y + 3, playerBox.size.x - 2, playerBox.size.y - 6)
+                    If (box) 'collision with block
+                        Die()
+                    End
+                End
+            Next
+
             Local boxes := level.groundLayer.IntersectAllRects(playerBox.point.x + 1, playerBox.point.y + 1, playerBox.size.x - 2, playerBox.size.y + 1)
             If boxes.Count() = 0 Then hitOnGround = False
             For Local box := EachIn boxes
@@ -178,7 +195,7 @@ Class Player
         SetPlayerBoxTo(nextX, position.y)
 
         Local box := level.IntersectRectWithBlock(playerBox.point.x + 1, playerBox.point.y + 1, playerBox.size.x - 2, playerBox.size.y - 2)
-        If (box)
+        If (box)            
             If (velocity.x <> 0)
                 nextX = position.x
                 velocity.x = 0

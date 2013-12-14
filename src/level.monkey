@@ -95,8 +95,8 @@ Class Level
     Method CreateDoor:Void(x%, y%)
         Local map := tilemap.GetLayer("objects")
         Local p := map.GetTileProperties(x, y)
-        Local switchId := Int(p.Get("switchId"))
-
+        Local switchIds := p.Get("switchId").Split(",")
+        Local allSwitches? = p.Get("allSwitchesRequired") = "1"
         Local doorHeight% = 0
         Local c% = 0
         Repeat
@@ -111,12 +111,19 @@ Class Level
             c += 1
         Forever                    
 
-        Local switch:Switch
+        Local switches:List<Switch> = New List<Switch>
         For Local obj := EachIn gameObjects
-            If (Switch(obj) And Switch(obj).id = switchId) Then switch = Switch(obj) ; Exit
+            If (Switch(obj))
+                For Local switchId := EachIn switchIds
+                    switchId = switchId.Trim()
+                    If (Int(switchId) = Switch(obj).id)
+                        switches.AddLast(Switch(obj))
+                    End
+                Next
+            End
         Next
 
-        gameObjects.AddLast(New Door(Self, x, y, switch, doorHeight))
+        gameObjects.AddLast(New Door(Self, x, y, switches, doorHeight, allSwitches))
         map.SetTile(x, y, 0)
     End
 
@@ -172,6 +179,12 @@ Class Level
         Return box
     End
 
+    Method IntersectAllRectsWithBlock:List<CollisionZone>(x#, y#, w#, h#)
+        Local boxes := blockLayer.IntersectAllRects(x, y, w, h)
+        boxes = dynamicBlocks.IntersectAllRects(x, y, w, h, boxes)
+        Return boxes
+    End
+
     Method UpdateCollisionLayers:Void()
         Local layer := tilemap.GetLayer("map")
         Local viewport := layer.GetCurrentViewport()
@@ -217,6 +230,7 @@ Class Level
 
         player.OnRender()
         'blockLayer.DebugDraw()
+        'dynamicBlocks.DebugDraw()
         PopMatrix()
 
         hud.OnRender()

@@ -63,8 +63,8 @@ Class CollisionLayer
         Return Null
     End
 
-    Method IntersectAllRects:List<CollisionZone>(x%, y%, w%, h%)
-        Local l := New List<CollisionZone>
+    Method IntersectAllRects:List<CollisionZone>(x%, y%, w%, h%, l:List<CollisionZone> = Null)
+        If (Not l) Then l = New List<CollisionZone>
         For Local i% = 0 To counter-1
             If Rect.Intersect(boundingBoxes[i].rect.point.x, boundingBoxes[i].rect.point.y, boundingBoxes[i].rect.size.x, boundingBoxes[i].rect.size.y, x, y, w, h)
                 l.AddLast(boundingBoxes[i])

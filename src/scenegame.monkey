@@ -20,6 +20,7 @@ Class SceneGame Extends Scene Implements Updateable, Renderable, IOnTouchDown
         Window.img = LoadImage("gfx/window.png", 16, 16, 3)
         Coin.img = LoadImage("gfx/coin.png")
         Door.img = LoadImage("gfx/door.png", 16, 16, 2)
+        Hud.hudFont = New BitmapFont("fonts/24.txt", False)
 
         level = New Level()
         level.Load("maps/level1.json")
