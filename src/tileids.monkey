@@ -10,4 +10,6 @@ Class TileIds
     Const SWITCH% = 35
     Const RED_DOOR_TOP% = 8
     Const RED_DOOR_BTM% = 18
+    Const SNAKE% = 41
+    Const ENEMY_STOPPER% = 42
 End

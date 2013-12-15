@@ -8,6 +8,7 @@ Import player
 Import window
 Import coin
 Import door
+Import snake
 
 Class SceneGame Extends Scene Implements Updateable, Renderable, IOnTouchDown
     Field level:Level
@@ -21,6 +22,7 @@ Class SceneGame Extends Scene Implements Updateable, Renderable, IOnTouchDown
         Coin.img = LoadImage("gfx/coin.png")
         Door.img = LoadImage("gfx/door.png", 16, 16, 2)
         Hud.hudFont = New BitmapFont("fonts/24.txt", False)
+        Snake.img = LoadImage("gfx/snake.png", 18, 32, 2, Image.MidHandle)
 
         level = New Level()
         level.Load("maps/level1.json")

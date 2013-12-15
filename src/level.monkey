@@ -9,6 +9,7 @@ Import window
 Import coin
 Import switch
 Import door
+Import snake
 
 Class Level
     Field player:Player
@@ -17,11 +18,14 @@ Class Level
     Field dynamicBlocks:CollisionLayer
     Field blockLayer:CollisionLayer
     Field groundLayer:CollisionLayer
+    Field stopperZones:CollisionLayer
+    Field enemyZones:CollisionLayer
 
     Field hud:Hud
     Field gameObjects:List<GameObject>
 
     Const GRAVITY# = 0.3
+    Const INVINICIBLE_TIME% = 120
 
     Method New()
         player = New Player(Self)
@@ -42,6 +46,14 @@ Class Level
         player.level = Self
         player.Restart()
 
+        blockLayer = New CollisionLayer()
+        groundLayer = New CollisionLayer()
+        dynamicBlocks = New CollisionLayer()
+        stopperZones = New CollisionLayer()
+        enemyZones = New CollisionLayer()
+
+        ResetCollisionLayers()
+        UpdateCollisionLayers()          
 
         Local map := tilemap.GetLayer("objects")
         
@@ -65,6 +77,24 @@ Class Level
                         Local hold := Int(p.Get("hold"))
                         Local id := Int(p.Get("id"))
                         gameObjects.AddLast(New Switch(Self, x, y, id, hold))
+
+                    Case TileIds.SNAKE
+                        Local speed# = 2.0
+
+                        Local p := map.GetTileProperties(x, y)
+                        If (p) Then speed = Float(p.Get("speed"))
+
+                        Local hitpoints# = 3.0
+                        If (p) Then hitpoints = Float(p.Get("hitpoints"))
+
+
+                        gameObjects.AddLast(New Snake(Self, x, y, speed, hitpoints))
+                        map.SetTile(x, y, 0)
+
+                    Case TileIds.ENEMY_STOPPER
+                        map.SetTile(x, y, 0)
+                        stopperZones.AddBox(x * tilemap.tileWidth, y * tilemap.tileHeight, tilemap.tileWidth, tilemap.tileHeight)
+
                 End
             Next
         Next
@@ -78,13 +108,6 @@ Class Level
                 End
             Next
         Next
-
-        blockLayer = New CollisionLayer()
-        groundLayer = New CollisionLayer()
-        dynamicBlocks = New CollisionLayer()
-
-        ResetCollisionLayers()
-        UpdateCollisionLayers()          
     End
 
     Method CreateCoin:Void(x%, y%)
@@ -146,7 +169,7 @@ Class Level
     End
 
     Method OnUpdate:Void(delta#)
-        UpdateDynamicCollisionLayers
+        UpdateDynamicCollisionLayers()
 
         For Local o := EachIn gameObjects
             o.OnUpdate(delta)
@@ -158,15 +181,21 @@ Class Level
         blockLayer.Reset()
         dynamicBlocks.Reset()
         groundLayer.Reset()
+        stopperZones.Reset()
     End
 
     Method UpdateDynamicCollisionLayers:Void()
         dynamicBlocks.Reset()
+        enemyZones.Reset()
 
         For Local o := EachIn gameObjects
             If (DynamicBlock(o))
                 Local r := DynamicBlock(o).GetBlockRect()
-                dynamicBlocks.AddBox(r.point.x, r.point.y, r.size.x, r.size.y, o)
+                If (r) Then dynamicBlocks.AddBox(r.point.x, r.point.y, r.size.x, r.size.y, o)
+            End
+            If (Enemy(o))
+                Local r := Enemy(o).GetBlockRect()
+                If (r) Then enemyZones.AddBox(r.point.x, r.point.y, r.size.x, r.size.y, o)
             End
         Next
     End
@@ -181,6 +210,12 @@ Class Level
 
     Method IntersectAllRectsWithBlock:List<CollisionZone>(x#, y#, w#, h#)
         Local boxes := blockLayer.IntersectAllRects(x, y, w, h)
+        boxes = dynamicBlocks.IntersectAllRects(x, y, w, h, boxes)
+        Return boxes
+    End
+
+    Method IntersectAllRectsWithGround:List<CollisionZone>(x#, y#, w#, h#)
+        Local boxes := groundLayer.IntersectAllRects(x, y, w, h)
         boxes = dynamicBlocks.IntersectAllRects(x, y, w, h, boxes)
         Return boxes
     End

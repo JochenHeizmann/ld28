@@ -34,6 +34,7 @@ Class Player
     Const WALK_ANIMSPEED# = 0.15
     Const THROW_AWAY_FRAMES% = 20
 
+    Field invincible% = 0
     Field walkFrame# = 0.0
     Field hammerJustThrownAway% = 0
 
@@ -160,7 +161,7 @@ Class Player
                 End
             Next
 
-            Local boxes := level.groundLayer.IntersectAllRects(playerBox.point.x + 1, playerBox.point.y + 1, playerBox.size.x - 2, playerBox.size.y + 1)
+            Local boxes := level.IntersectAllRectsWithGround(playerBox.point.x + 1, playerBox.point.y + 1, playerBox.size.x - 2, playerBox.size.y + 1)
             If boxes.Count() = 0 Then hitOnGround = False
             For Local box := EachIn boxes
                 If (box And Int(position.y <= box.rect.point.y))
@@ -242,12 +243,27 @@ Class Player
         End
 
         UpdatePlayerBox()
-        If Rect.Intersect(playerBox.point.x, playerBox.point.y, playerBox.size.x, playerBox.size.y, hammer.position.x, hammer.position.y, 1, 1)                    
-            If (hammer.IsCollectable())
-                hammer.isInInventory = True        
+
+        ' player <--> enemies / player <--> hammer
+        If (invincible <= 0)
+            If Rect.Intersect(playerBox.point.x, playerBox.point.y, playerBox.size.x, playerBox.size.y, hammer.position.x, hammer.position.y, 1, 1)                    
+                If (hammer.IsCollectable())
+                    hammer.isInInventory = True        
+                End
+            Else
+                hammer.collectable = True
             End
-        Else
-            hammer.collectable = True
+
+            Local box := level.enemyZones.IntersectRect(playerBox.point.x, playerBox.point.y, playerBox.size.x, playerBox.size.y)
+            If (box)
+                If (hammer.isInInventory)
+                    hammer.LooseIt()
+                    hammerJustThrownAway = THROW_AWAY_FRAMES
+                    invincible = Level.INVINICIBLE_TIME
+                Else
+                    Die()
+                End
+            End
         End
     End
 
@@ -260,6 +276,8 @@ Class Player
     End
 
     Method OnUpdate:Void(delta#)
+        If (invincible > 0) Then invincible -= 1
+
         UpdatePhysics()
         If (state <> DYING)
             UpdateInputs(delta)
@@ -308,8 +326,6 @@ Class Player
         Else If (state = DYING)
             frame = GetStandingFrame() + 1
         End
-
-        Print Int(frame)
     End
 
     Method UpdateCamera:Void()
@@ -318,11 +334,12 @@ Class Player
     End
 
     Method OnRender:Void()
-
-        If (direction = DIR_RIGHT)
-            DrawImage(img, position.x, position.y, frame)
-        Else
-            DrawImage(img, position.x, position.y, 0.0, -1.0, 1.0, frame)
+        If (Not (invincible > 0 And invincible Mod 4 > 1))
+            If (direction = DIR_RIGHT)
+                DrawImage(img, position.x, position.y, frame)
+            Else
+                DrawImage(img, position.x, position.y, 0.0, -1.0, 1.0, frame)
+            End
         End
 
         hammer.OnRender()

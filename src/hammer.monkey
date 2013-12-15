@@ -26,6 +26,8 @@ Class Hammer
 
     Field level:Level
 
+    Field hittedEnemy:Enemy = Null
+
     Method New(l:Level)
         level = l
     End    
@@ -49,6 +51,15 @@ Class Hammer
         rotate = True
     End
 
+    Method LooseIt:Void()
+        ThrowIt()
+        velocity.x = Rnd(0.1, 0.5) * level.player.direction * THROW_SPEED
+        velocity.y = Rnd(0.2, 0.5) * THROW_SPEED
+
+        velocity.x = Clamp(velocity.x, -8.0, 8.0)
+        velocity.y = Clamp(velocity.y, -8.0, 8.0)
+    End
+
     Method IsCollectable?()
         If (Not isInInventory And collectable)
             Return True
@@ -65,6 +76,8 @@ Class Hammer
             End
         End
 
+        hittedEnemy = Null
+        
         CheckXCollision()
         CheckYCollision()
 
@@ -82,11 +95,25 @@ Class Hammer
         Local bbW := 1
         Local bbH := img.Height()
 
-        Local box := level.IntersectRectWithBlock(bbX, bbY, bbW, bbH - 2)
+        Local box:CollisionZone
+
+        If (level.player.invincible <= 0)
+            box = level.enemyZones.IntersectRect(bbX, bbY, bbW, bbH - 2)
+            If (box And Enemy(box.object))
+                hittedEnemy = Enemy(box.object)
+                Enemy(box.object).OnHit(Self)
+                velocity.x = -velocity.x
+            End
+        End
+
+        x = position.x + velocity.x
+        bbX = x + img.Width() / 2
+
+        box = level.IntersectRectWithBlock(bbX, bbY, bbW, bbH - 2)
         If (box)
             If (Window(box.object) And Abs(velocity.x) > 2) Then Window(box.object).OnDestroy(Self)
             velocity.x = -velocity.x
-        End
+        End        
     End
 
     Method CheckYCollision:Void()
@@ -98,7 +125,23 @@ Class Hammer
         Local bbW := 1
         Local bbH := img.Height()
 
-        Local box := level.IntersectRectWithBlock(bbX, bbY, bbW, bbH + 1)
+        Local box:CollisionZone
+
+        If (level.player.invincible <= 0)
+            box = level.enemyZones.IntersectRect(bbX, bbY, bbW, bbH - 2)
+            If (box And Enemy(box.object))
+                If (hittedEnemy <> Enemy(box.object))
+                    ' dont hit enemy twice
+                    Enemy(box.object).OnHit(Self)
+                End
+                velocity.y = -velocity.y
+            End
+        End
+
+        y = position.y + velocity.y
+        bbY = y
+
+        box = level.IntersectRectWithBlock(bbX, bbY, bbW, bbH + 1)
         If (box)
             If (Window(box.object) And Abs(velocity.y) > 2) Then Window(box.object).OnDestroy(Self)
             velocity.y = -velocity.y * RESTITUTION
