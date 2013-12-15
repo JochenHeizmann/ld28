@@ -29,10 +29,13 @@ Class Player
     'player frames
     Const FRAME_STANDING# = 2.00
     Const FRAME_STANDING_WITH_HAMMER# = 0.00
-    Const WALK_FRAMES% = 2.0
+    Const FRAME_HAMMER_THROWN_AWAY# = 4.0
+    Const WALK_FRAMES% = 1.0
     Const WALK_ANIMSPEED# = 0.15
+    Const THROW_AWAY_FRAMES% = 20
 
     Field walkFrame# = 0.0
+    Field hammerJustThrownAway% = 0
 
     Global img:Image
 
@@ -251,6 +254,7 @@ Class Player
     Method UpdateHammer:Void(delta#)
         If (hammer.isInInventory And input.fire)
             hammer.ThrowIt()
+            hammerJustThrownAway = THROW_AWAY_FRAMES
         End
         hammer.OnUpdate(delta)
     End
@@ -277,13 +281,19 @@ Class Player
         If (hammer.isInInventory)
             Return FRAME_STANDING_WITH_HAMMER
         Else
-            Return FRAME_STANDING
+            If (hammerJustThrownAway > 0)
+                Return FRAME_HAMMER_THROWN_AWAY
+            Else
+                Return FRAME_STANDING
+            End
         End
     End
 
-    Method UpdateAnimation:Void()
+    Method UpdateAnimation:Void()    
+        If (hammerJustThrownAway > 0) Then hammerJustThrownAway -= 1 
         If (state = RUNNING)
             Local walkFactor := Abs(velocity.x / MAX_VELOCITY_X)
+            walkFactor = 0.3
             If (walkFactor > 0.01)
                 If (walkFactor < 0.2) Then walkFactor = 0.2
                 walkFrame += WALK_ANIMSPEED * walkFactor                                                    
@@ -298,7 +308,8 @@ Class Player
         Else If (state = DYING)
             frame = GetStandingFrame() + 1
         End
-        'Print Int(frame)
+
+        Print Int(frame)
     End
 
     Method UpdateCamera:Void()
