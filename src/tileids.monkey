@@ -2,7 +2,7 @@ Strict
 
 Class TileIds
     Const START_PLAYER% = 71
-    Const STONE% = 72
+    Const HAMMER% = 72
     Const WINDOW_LEFT% = 31
     Const WINDOW_RIGHT% = 32
     Const WINDOW_CENTERED% = 33

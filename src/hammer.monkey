@@ -3,7 +3,7 @@ Strict
 Import fairlight
 Import level
 
-Class Stone
+Class Hammer
     Global img:Image
 
     Const THROW_SPEED# = 8.0
@@ -12,12 +12,17 @@ Class Stone
     Const FRICTION# = 0.98
     Const RESTITUTION# = 0.5
 
+    Const ROTATION_STEP# = 10
+    Field ROTATION_SPEED# = 0.3
+    Field rotate? = False
+
     Field isInInventory? = False
     Field collectable? = False
 
     Field position:Vector2D = Vector2D.Zero()
     Field velocity:Vector2D = Vector2D.Zero()
 
+    Field rotation#    
 
     Field level:Level
 
@@ -41,6 +46,7 @@ Class Stone
 
         isInInventory = False
         collectable = False
+        rotate = True
     End
 
     Method IsCollectable?()
@@ -51,7 +57,14 @@ Class Stone
         Return False
     End
 
-    Method OnUpdate:Void(delta#)           
+    Method OnUpdate:Void(delta#)  
+        If rotate
+            rotation += ROTATION_SPEED
+            If (GetRotation() Mod 180 = 0)
+                If ((Abs(velocity.x) < 3) And (Abs(velocity.y) < 3)) Then rotate = False
+            End
+        End
+
         CheckXCollision()
         CheckYCollision()
 
@@ -95,10 +108,18 @@ Class Stone
             End
         End
     End
+
+    Method GetRotation#()
+        Return Int(rotation) * ROTATION_STEP Mod 360
+    End
     
     Method OnRender:Void()
         If (Not isInInventory)
-            DrawImage img, position.x, position.y
+            PushMatrix()
+            Translate (position.x, position.y)
+            Rotate(GetRotation())
+            DrawImage img, 0, Cos(GetRotation()) * 4
+            PopMatrix()
         End
     End
 End

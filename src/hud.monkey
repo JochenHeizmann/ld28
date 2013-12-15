@@ -22,11 +22,11 @@ Class Hud
     End
 
     Method OnRender:Void()
-        If (level.player.stone.isInInventory)
+        If (level.player.hammer.isInInventory)
             DrawImage powerBar, POWERBAR_X + 16, POWERBAR_Y, 0
             Local w := level.player.input.firePower * powerBar.Width()
             Local h := powerBar.Height()
-            DrawImage level.player.stone.img, POWERBAR_X, POWERBAR_Y + 4
+            DrawImage level.player.hammer.img, POWERBAR_X, POWERBAR_Y + 4
             DrawImageRect powerBar, POWERBAR_X + 16, POWERBAR_Y, 0, 0, w, h, 0.0, 1.0, 1.0, 1
         End
 

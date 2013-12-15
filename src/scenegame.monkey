@@ -3,7 +3,7 @@ Strict
 Import fairlight
 
 Import level
-Import stone
+Import hammer
 Import player
 Import window
 Import coin
@@ -14,8 +14,8 @@ Class SceneGame Extends Scene Implements Updateable, Renderable, IOnTouchDown
     Field player:Player
 
     Method OnEnter:Void()
-        Stone.img = LoadImage("gfx/stone.png")
-        Player.img = LoadImage("gfx/player.png", 32, 32, 4)
+        Hammer.img = LoadImage("gfx/hammer.png", 1, Image.MidHandle)
+        Player.img = LoadImage("gfx/player.png", 32, 32, 6)
         Hud.powerBar = LoadImage("gfx/powerbar.png", 200, 16, 2)
         Window.img = LoadImage("gfx/window.png", 16, 16, 3)
         Coin.img = LoadImage("gfx/coin.png")

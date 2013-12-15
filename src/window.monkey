@@ -4,7 +4,7 @@ Import level
 Import fairlight
 Import gameobject
 Import dynamicblock
-Import stone
+Import hammer
 
 Class Window Extends GameObject Implements DynamicBlock
     Const LEFT_ALIGNED% = 0
@@ -42,7 +42,7 @@ Class Window Extends GameObject Implements DynamicBlock
     Method OnUpdate:Void(delta#)
     End
 
-    Method OnDestroy:Void(stone:Stone)
+    Method OnDestroy:Void(hammer:Hammer)
         level.gameObjects.Remove(Self)
     End
 

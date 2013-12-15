@@ -3,7 +3,7 @@ Strict
 Import fairlight
 Import level
 Import playerinput
-Import stone
+Import hammer
 
 Class Player
     Const IDLE% = 0
@@ -25,6 +25,14 @@ Class Player
 
     Const MAX_VELOCITY_Y# = 32.0
     Const MAX_VELOCITY_X# = 8
+
+    'player frames
+    Const FRAME_STANDING# = 2.00
+    Const FRAME_STANDING_WITH_HAMMER# = 0.00
+    Const WALK_FRAMES% = 2.0
+    Const WALK_ANIMSPEED# = 0.15
+
+    Field walkFrame# = 0.0
 
     Global img:Image
 
@@ -48,7 +56,7 @@ Class Player
 
     Field coins% = 0
 
-    Field stone:Stone
+    Field hammer:Hammer
 
     Method New(l:Level)
         level = l
@@ -65,7 +73,7 @@ Class Player
 
         input = New PlayerInput()
 
-        stone = New Stone(level)
+        hammer = New Hammer(level)
     End
 
     Method UpdatePlayerBox:Void()
@@ -225,26 +233,26 @@ Class Player
         Local posY := position.y - 8
         Local tileId := level.tilemap.GetLayer("objects").GetTileFromPixel(posX, posY)
         Select tileId
-            Case TileIds.STONE
-                stone.isInInventory = True
+            Case TileIds.HAMMER
+                hammer.isInInventory = True
                 level.tilemap.GetLayer("objects").SetTileAtPixel(posX, posY, 0)
         End
 
         UpdatePlayerBox()
-        If Rect.Intersect(playerBox.point.x, playerBox.point.y, playerBox.size.x, playerBox.size.y, stone.position.x, stone.position.y, 1, 1)                    
-            If (stone.IsCollectable())
-                stone.isInInventory = True        
+        If Rect.Intersect(playerBox.point.x, playerBox.point.y, playerBox.size.x, playerBox.size.y, hammer.position.x, hammer.position.y, 1, 1)                    
+            If (hammer.IsCollectable())
+                hammer.isInInventory = True        
             End
         Else
-            stone.collectable = True
+            hammer.collectable = True
         End
     End
 
-    Method UpdateStone:Void(delta#)
-        If (stone.isInInventory And input.fire)
-            stone.ThrowIt()
+    Method UpdateHammer:Void(delta#)
+        If (hammer.isInInventory And input.fire)
+            hammer.ThrowIt()
         End
-        stone.OnUpdate(delta)
+        hammer.OnUpdate(delta)
     End
 
     Method OnUpdate:Void(delta#)
@@ -254,7 +262,7 @@ Class Player
             CheckYMovement()
             CheckXMovement()
             CheckCollisions()
-            UpdateStone(delta)
+            UpdateHammer(delta)
 
             If (position.y > (level.tilemap.height * level.tilemap.tileHeight)) Then Die()
         Else
@@ -265,36 +273,32 @@ Class Player
         UpdateCamera()
     End
 
-    Const FRAME_STANDING# = 0.99
-    Const WALK_FRAMES% = 3.0
-    Const WALK_FRAME_FIRST% = 1.0
-    Const WALK_FRAME_LAST% = WALK_FRAME_FIRST + WALK_FRAMES
-    Const FRAME_JUMPING% = 1
-    Const FRAME_FALLING% = 1
-    Const FRAME_DYING% = 2
-    Const WALK_ANIMSPEED# = 0.15
+    Method GetStandingFrame#()
+        If (hammer.isInInventory)
+            Return FRAME_STANDING_WITH_HAMMER
+        Else
+            Return FRAME_STANDING
+        End
+    End
 
     Method UpdateAnimation:Void()
         If (state = RUNNING)
             Local walkFactor := Abs(velocity.x / MAX_VELOCITY_X)
             If (walkFactor > 0.01)
                 If (walkFactor < 0.2) Then walkFactor = 0.2
-                frame += WALK_ANIMSPEED * walkFactor
-                If (frame >= WALK_FRAME_LAST) Then frame -= WALK_FRAMES
+                walkFrame += WALK_ANIMSPEED * walkFactor                                                    
+                frame = GetStandingFrame() + walkFrame Mod (WALK_FRAMES+1)
             Else
-                frame = FRAME_STANDING
+                frame = GetStandingFrame()
             End
         Else If (state = IDLE)
-            frame = FRAME_STANDING
+            frame = GetStandingFrame()
         Else If (state = JUMP)
-            If (Floor(jumpVelo) = 0)
-                frame = FRAME_FALLING
-            Else
-                frame = FRAME_JUMPING
-            End
+            frame = GetStandingFrame() + 1
         Else If (state = DYING)
-            frame = FRAME_DYING
+            frame = GetStandingFrame() + 1
         End
+        'Print Int(frame)
     End
 
     Method UpdateCamera:Void()
@@ -310,14 +314,14 @@ Class Player
             DrawImage(img, position.x, position.y, 0.0, -1.0, 1.0, frame)
         End
 
-        stone.OnRender()
+        hammer.OnRender()
 #rem
         SetAlpha(0.2)
         SetColor(255,0,0)
         UpdatePlayerBox()
         DrawRect(playerBox.point.x, playerBox.point.y, playerBox.size.x, playerBox.size.y)
         SetColor(0,0,255)
-        DrawRect(stone.position.x, stone.position.y, stone.img.Width(), stone.img.Height())
+        DrawRect(hammer.position.x, hammer.position.y, hammer.img.Width(), hammer.img.Height())
         SetAlpha(1)
 #end
 

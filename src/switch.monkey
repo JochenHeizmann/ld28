@@ -23,7 +23,7 @@ Class Switch Extends GameObject
     Method OnUpdate:Void(delta#)
         If (activated And hold) Then Return
 
-        Local s := level.player.stone
+        Local s := level.player.hammer
         Local playerBox := level.player.playerBox
         activated = False
         If (Rect.Intersect(boundingBox, playerBox))
