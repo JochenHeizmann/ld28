@@ -14,6 +14,10 @@ Class Player
     Const DIR_LEFT% = -1
     Const DIR_RIGHT% = 1
 
+    Const IDLE_TIME_COOLDOWN% = 180
+    Const IDLE_TIME_MIN_START% = 60
+    Const IDLE_TIME_MAX_START% = 120
+
     'player jumping
     Const JUMP_INITIAL_IMPULSE# = 16
     Const JUMP_SLOWDOWN_FACTOR# = 0.94
@@ -32,11 +36,15 @@ Class Player
     Const FRAME_HAMMER_THROWN_AWAY# = 4.0
     Const WALK_FRAMES% = 1.0
     Const WALK_ANIMSPEED# = 0.15
-    Const THROW_AWAY_FRAMES% = 20
+    Const THROW_AWAY_FRAMES% = 30
 
     Field invincible% = 0
     Field walkFrame# = 0.0
     Field hammerJustThrownAway% = 0
+    Field idleTime% = 0
+    Field playingIdleAnimation? = False
+
+    Field score% = 0
 
     Global img:Image
 
@@ -58,9 +66,11 @@ Class Player
 
     Field jumpVelo# = 0
 
-    Field coins% = 0
+    Field cornucopias% = 0
 
     Field hammer:Hammer
+
+    Field stp% = 0
 
     Method New(l:Level)
         level = l
@@ -99,8 +109,20 @@ Class Player
         level.tilemap.GetLayer("objects").x = lastRestart.x * level.tilemap.tileWidth - BaseApplication.GetInstance().virtualDisplay.virtualWidth / 2
         level.tilemap.GetLayer("objects").y = lastRestart.y * level.tilemap.tileHeight - BaseApplication.GetInstance().virtualDisplay.virtualHeight / 2
         level.tilemap.GetLayer("objects").SetTile(lastRestart.x, lastRestart.y, 0)
-        position.x = lastRestart.x * level.tilemap.tileWidth  + level.tilemap.tileWidth / 2
-        position.y = lastRestart.y * level.tilemap.tileHeight + level.tilemap.tileHeight
+        position.x = GetLastRestartX()
+        position.y = GetLastRestartY()
+
+        velocity.x = 0
+        velocity.y = 0
+        input.ResetAll()
+    End
+
+    Method GetLastRestartX#()
+        Return lastRestart.x * level.tilemap.tileWidth  + level.tilemap.tileWidth / 2
+    End
+
+    Method GetLastRestartY#()
+        Return lastRestart.y * level.tilemap.tileHeight + level.tilemap.tileHeight
     End
 
     Method UpdatePhysics:Void()
@@ -109,6 +131,8 @@ Class Player
     End
 
     Method UpdateInputs:Void(delta#)
+        If (level.IsGamePaused()) Then Return
+
         input.OnUpdate(delta)
 
         If (input.right)
@@ -126,6 +150,7 @@ Class Player
                 state = JUMP
                 jumpVelo = JUMP_INITIAL_IMPULSE
                 input.jumpStarted = False
+                BaseApplication.GetInstance().soundManager.PlaySfx("sfx/jump")
             Else If (state = JUMP)
                 jumpVelo *= JUMP_SLOWDOWN_FACTOR
             End
@@ -150,7 +175,7 @@ Class Player
             Local boxesBlocks := level.IntersectAllRectsWithBlock(playerBox.point.x + 1, playerBox.point.y + 1, playerBox.size.x - 2, playerBox.size.y + 1)
             For Local box := EachIn boxesBlocks
                 If (Door(box.object))
-                    nextY = Int(box.rect.point.y - Door.SPEED)
+                    nextY = Int(box.rect.point.y - Door.SPEED - 1)
                     velocity.y = 0
                     SetPlayerBoxTo(position.x, nextY)     
                     state = IDLE        
@@ -171,6 +196,8 @@ Class Player
                     If (hitOnGround = False)
                         'play sfx
                         hitOnGround = True
+                        level.particleSystem.LaunchParticleDust(position.x, nextY)
+                        BaseApplication.GetInstance().soundManager.PlaySfx("sfx/hitground")
                     End
                     Exit
                 End
@@ -200,6 +227,12 @@ Class Player
             velocity.x *= ACCELERATION_MOMENTUM
         Else
             velocity.x += (direction * ACCELERATION)
+        End
+
+        If (velocity.y = 0)
+            If ( (velocity.x > 0 And direction = DIR_LEFT) Or (velocity.x < 0 And direction = DIR_RIGHT) )
+                If (Rnd(0, 100) > 50) Then level.particleSystem.LaunchParticleDust(position.x, position.y)
+            End
         End
 
         nextX += velocity.x
@@ -240,15 +273,18 @@ Class Player
             Case TileIds.HAMMER
                 hammer.isInInventory = True
                 level.tilemap.GetLayer("objects").SetTileAtPixel(posX, posY, 0)
+                BaseApplication.GetInstance().soundManager.PlaySfx("sfx/takehammer")
         End
 
         UpdatePlayerBox()
 
         ' player <--> enemies / player <--> hammer
         If (invincible <= 0)
-            If Rect.Intersect(playerBox.point.x, playerBox.point.y, playerBox.size.x, playerBox.size.y, hammer.position.x, hammer.position.y, 1, 1)                    
+            If Rect.Intersect(playerBox.point.x, playerBox.point.y, playerBox.size.x, playerBox.size.y, hammer.position.x - Hammer.img.Width() / 2, hammer.position.y, Hammer.img.Width(), Hammer.img.Height())
                 If (hammer.IsCollectable())
-                    hammer.isInInventory = True        
+                    hammer.isInInventory = True    
+                    input.ResetFire()
+                    BaseApplication.GetInstance().soundManager.PlaySfx("sfx/takehammer")
                 End
             Else
                 hammer.collectable = True
@@ -260,6 +296,7 @@ Class Player
                     hammer.LooseIt()
                     hammerJustThrownAway = THROW_AWAY_FRAMES
                     invincible = Level.INVINICIBLE_TIME
+                    BaseApplication.GetInstance().soundManager.PlaySfx("sfx/playerhit")
                 Else
                     Die()
                 End
@@ -269,17 +306,22 @@ Class Player
 
     Method UpdateHammer:Void(delta#)
         If (hammer.isInInventory And input.fire)
-            hammer.ThrowIt()
-            hammerJustThrownAway = THROW_AWAY_FRAMES
+            hammer.ThrowIt()    
+            BaseApplication.GetInstance().soundManager.PlaySfx("sfx/throwhammer")
+            playingIdleAnimation = False        
         End
         hammer.OnUpdate(delta)
     End
 
     Method OnUpdate:Void(delta#)
+        If (level.IsGamePaused()) Then UpdateCamera() ; Return
+
+        If (KeyHit(KEY_R)) Then Die()
+
         If (invincible > 0) Then invincible -= 1
 
-        UpdatePhysics()
         If (state <> DYING)
+            UpdatePhysics()
             UpdateInputs(delta)
             CheckYMovement()
             CheckXMovement()
@@ -288,11 +330,43 @@ Class Player
 
             If (position.y > (level.tilemap.height * level.tilemap.tileHeight)) Then Die()
         Else
-            jumpVelo *= JUMP_SLOWDOWN_FACTOR
-            position.y = GetNextY()
+            stp += 1
+            If (stp < 32)        
+                If (stp > 0)        
+                    Local ss := 0
+                    If (stp >= 16) Then ss = stp-16
+                    position.x += (GetLastRestartX() - position.x) / (16.0 - ss)
+                    position.y += (GetLastRestartY() - position.y) / (16.0 - ss)
+                    velocity.x = 0
+                    velocity.y = 0
+                    invincible = Level.INVINICIBLE_TIME
+                    input.ResetAll()
+                    hammer.isInInventory = True
+                End
+            Else
+                position.x = GetLastRestartX()
+                position.y = GetLastRestartY()
+                level.playerDied = True
+                level.PauseGame()
+                state = IDLE
+                invincible = Level.INVINICIBLE_TIME
+            End
         End
         UpdateAnimation()
         UpdateCamera()
+
+        If (velocity.x = 0 And velocity.y = 0) Then idleTime += 1 Else idleTime = 0
+        If (input.firePower > 0) Then idleTime = 0
+        If (idleTime > IDLE_TIME_COOLDOWN)
+            If (hammer.isInInventory)
+                idleTime = Rnd(IDLE_TIME_MIN_START, IDLE_TIME_MAX_START)
+                hammer.ThrowIt()
+                BaseApplication.GetInstance().soundManager.PlaySfx("sfx/throwup")
+                hammer.velocity.x = 0
+                hammer.velocity.y = Rnd(-4, -7)
+                playingIdleAnimation = True
+            End
+        End
     End
 
     Method GetStandingFrame#()
@@ -334,6 +408,8 @@ Class Player
     End
 
     Method OnRender:Void()
+        If (state = DYING And stp < 32) Then Return
+
         If (Not (invincible > 0 And invincible Mod 4 > 1))
             If (direction = DIR_RIGHT)
                 DrawImage(img, position.x, position.y, frame)
@@ -356,7 +432,11 @@ Class Player
     End
 
     Method Die:Void()
-        Error "DIE"
+        state = DYING
+        level.particleSystem.LaunchParticleExplosion(position.x, position.y)
+        level.particleSystem.LaunchParticleExplosion(position.x, position.y)
+        stp = -32
+        BaseApplication.GetInstance().soundManager.PlaySfx("sfx/playerdies")
     End
 
 End

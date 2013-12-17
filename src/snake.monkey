@@ -17,6 +17,7 @@ Class Snake Extends GameObject Implements Enemy
     Field velocity := Vector2D.Zero()
     Field boundingBox := New Rect()
 
+    Field originalHitpoints#
     Field hitpoints# = 3.0
 
     Field speed#
@@ -34,6 +35,8 @@ Class Snake Extends GameObject Implements Enemy
         velocity.x = 2
 
         UpdateBoundingBox(position.x, position.y)
+
+        originalHitpoints = Self.hitpoints
     End
 
     Method GetBlockRect:Rect()
@@ -58,9 +61,17 @@ Class Snake Extends GameObject Implements Enemy
 
     Method OnHit:Void(hammer:Hammer)
         If (Abs(hammer.velocity.x) > 2 Or Abs(hammer.velocity.y) > 2)
+            level.particleSystem.LaunchParticleSparkle(position.x, position.y + velocity.y)
             invincible = Level.INVINICIBLE_TIME
             hitpoints -= 1
-            If (hitpoints <= 0) Then level.gameObjects.Remove(Self)        
+            If (hitpoints <= 0) 
+                BaseApplication.GetInstance().soundManager.PlaySfx("sfx/explosion")
+                level.particleSystem.LaunchParticleExplosion(position.x, position.y)
+                level.gameObjects.Remove(Self)        
+                level.player.score += 30 * Int(originalHitpoints)
+            Else
+                BaseApplication.GetInstance().soundManager.PlaySfx("sfx/enemyhit")
+            End
         End
     End
 

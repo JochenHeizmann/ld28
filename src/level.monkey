@@ -5,14 +5,22 @@ Import tileids
 Import player
 Import collisionlayer
 Import hud
-Import window
-Import coin
+Import destroyableblock
+Import cornucopia
 Import switch
 Import door
 Import snake
+Import particlesystem
+Import lightrenderer
+Import torch
+Import exitdoor
+Import messagesystem
+Import levelmessage
 
 Class Level
     Field player:Player
+    Field playerDied? = False
+
     Field tilemap:TiledMap
 
     Field dynamicBlocks:CollisionLayer
@@ -21,9 +29,16 @@ Class Level
     Field stopperZones:CollisionLayer
     Field enemyZones:CollisionLayer
 
+    Field particleSystem:ParticleSystem
+    Field lightRenderer:LightRenderer
+
     Field hud:Hud
     Field gameObjects:List<GameObject>
 
+    Field messageSystem:MessageSystem
+
+    Field pauseGame% = 0
+    Field levelCompleted? = False
     Const GRAVITY# = 0.3
     Const INVINICIBLE_TIME% = 120
 
@@ -35,16 +50,27 @@ Class Level
 
     Method Load:Void(levelFile$)
         tilemap = New TiledMap()
-        tilemap.Load("maps/level1.json")
+        tilemap.Load(levelFile)
         InitializeLevel()
     End
 
+    Method NextLevel:Void()
+        levelCompleted = True
+        PauseGame()
+    End
+
     Method InitializeLevel:Void()
+        Print "Init"
         gameObjects = New List<GameObject>
+        particleSystem = New ParticleSystem(Self)
+        lightRenderer = New LightRenderer(Self)
+
+        Cornucopia.Initialize()
+        messageSystem = New MessageSystem(Self)
 
         ' Init Player Start position
         player.level = Self
-        player.Restart()
+        player.Restart(-1, -1)
 
         blockLayer = New CollisionLayer()
         groundLayer = New CollisionLayer()
@@ -60,17 +86,17 @@ Class Level
         For Local x := 0 To tilemap.width-1
             For Local y := 0 To tilemap.height-1
                 Select map.GetTile(x,y)
-                    Case TileIds.WINDOW_LEFT
-                        CreateWindow(TileIds.WINDOW_LEFT, x, y, Window.LEFT_ALIGNED)    
+                    Case TileIds.DESTROYABLEBLOCK_1
+                        CreateDestroyableBlock(TileIds.DESTROYABLEBLOCK_1, x, y, DestroyableBlock.BLOCK1)    
 
-                    Case TileIds.WINDOW_RIGHT
-                        CreateWindow(TileIds.WINDOW_RIGHT, x, y, Window.RIGHT_ALIGNED)                        
+                    Case TileIds.DESTROYABLEBLOCK_2
+                        CreateDestroyableBlock(TileIds.DESTROYABLEBLOCK_1, x, y, DestroyableBlock.BLOCK2)                        
 
-                    Case TileIds.WINDOW_CENTERED
-                        CreateWindow(TileIds.WINDOW_CENTERED, x, y, Window.CENTERED) 
+                    Case TileIds.DESTROYABLEBLOCK_ICE
+                        CreateDestroyableBlock(TileIds.DESTROYABLEBLOCK_ICE, x, y, DestroyableBlock.ICE) 
 
-                    Case TileIds.COIN
-                        CreateCoin(x, y)   
+                    Case TileIds.CORNUCOPIA
+                        CreateCornucopia(x, y)   
 
                     Case TileIds.SWITCH
                         Local p := map.GetTileProperties(x, y)
@@ -95,6 +121,28 @@ Class Level
                         map.SetTile(x, y, 0)
                         stopperZones.AddBox(x * tilemap.tileWidth, y * tilemap.tileHeight, tilemap.tileWidth, tilemap.tileHeight)
 
+                    Case TileIds.TORCH
+                        map.SetTile(x, y, 0)
+                        Local tx := x * tilemap.tileWidth
+                        Local ty := y * tilemap.tileHeight - Torch.img.Height() + 16
+
+                        Local radius# = 128.0
+                        Local p := map.GetTileProperties(x, y)
+                        If (p) Then radius = Float(p.Get("lightRadius"))
+                        Local light := New Light(tx, ty, radius)
+                        lightRenderer.lights.AddLast(light)
+                        Local torch := New Torch(Self, light, radius)
+                        gameObjects.AddLast(torch)
+
+                    Case TileIds.EXIT_DOOR
+                        Local exitDoor := New ExitDoor(Self, x, y)
+                        gameObjects.AddLast(exitDoor)
+
+                    Case TileIds.MESSAGE
+                        Local text := map.GetTileProperties(x, y).Get("text")
+                        Local msg := New LevelMessage(Self, x, y, text)
+                        gameObjects.AddLast(msg)
+
                 End
             Next
         Next
@@ -108,11 +156,14 @@ Class Level
                 End
             Next
         Next
+
+        tilemap.GetLayer("bg").SetOffsetFactor(0.75, 0.75)
+        tilemap.GetLayer("bg").renderer = lightRenderer
     End
 
-    Method CreateCoin:Void(x%, y%)
+    Method CreateCornucopia:Void(x%, y%)
         tilemap.GetLayer("objects").SetTile(x, y, 0)
-        gameObjects.AddLast(New Coin(Self, x, y))
+        gameObjects.AddLast(New Cornucopia(Self, x, y))
     End
 
     Method CreateDoor:Void(x%, y%)
@@ -150,31 +201,24 @@ Class Level
         map.SetTile(x, y, 0)
     End
 
-    Method CreateWindow:Void(tileId%, x%, y%, type%)
+    Method CreateDestroyableBlock:Void(tileId%, x%, y%, type%)
         Local map := tilemap.GetLayer("objects")
-        Local winHeight% = 0
-        Local c% = 0
-        Repeat
-            If (tilemap.height <= y + c) Then Exit
-            Local id := map.GetTile(x, y + c)
-            If (id = tileId) 
-                winHeight += 1 
-                map.SetTile(x, y + c, 0)
-            Else 
-                Exit
-            End
-            c += 1
-        Forever                    
-        gameObjects.AddLast(New Window(Self, x, y, winHeight, type))  
+        map.SetTile(x, y, 0)
+        gameObjects.AddLast(New DestroyableBlock(Self, x, y, type))  
     End
 
     Method OnUpdate:Void(delta#)
         UpdateDynamicCollisionLayers()
 
+        Door.ResetPlaySfx()
         For Local o := EachIn gameObjects
             o.OnUpdate(delta)
         Next
+        Door.UpdateSfx()
         player.OnUpdate(delta)        
+
+        messageSystem.OnUpdate(delta)
+        particleSystem.OnUpdate(delta)
     End
 
     Method ResetCollisionLayers:Void()
@@ -263,11 +307,28 @@ Class Level
             o.OnRender()
         Next
 
+        particleSystem.OnRender()
+
         player.OnRender()
         'blockLayer.DebugDraw()
         'dynamicBlocks.DebugDraw()
         PopMatrix()
 
         hud.OnRender()
+        messageSystem.OnRender()
+    End
+
+    Method PauseGame:Void()
+        pauseGame += 1
+        Print "Pause: " + pauseGame
+    End
+
+    Method UnpauseGame:Void()
+        pauseGame -= 1
+        Print "Pause: " + pauseGame
+    End
+
+    Method IsGamePaused?()
+        Return pauseGame > 0
     End
 End

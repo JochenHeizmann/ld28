@@ -9,6 +9,8 @@ Class Door Extends GameObject Implements DynamicBlock
 
     Const SPEED# = 2.0
 
+    Global playSfx? = False
+
     Field position := Vector2D.Zero()
     Field level:Level
     Field switches:List<Switch>
@@ -16,6 +18,8 @@ Class Door Extends GameObject Implements DynamicBlock
     Field rect:Rect
     Field allSwitchesRequired?
     Field open# = 0
+
+    Field originalSize := Vector2D.Zero()
 
     Method New(l:Level, x%, y%, switches:List<Switch>, height%, switchesRequired?)
         level = l
@@ -25,7 +29,21 @@ Class Door Extends GameObject Implements DynamicBlock
         Self.height = height
         allSwitchesRequired = switchesRequired
 
-        rect = New Rect(position.x, position.y, img.Width(), height * img.Height())
+        originalSize.x = img.Width()
+        originalSize.y = height * img.Height()
+        rect = New Rect(position.x, position.y, img.Width(), originalSize.y)
+    End
+
+    Function ResetPlaySfx:Void()
+        playSfx = False
+    End
+
+    Function UpdateSfx:Void()
+        If (playSfx And Not BaseApplication.GetInstance().soundManager.IsChannelPlaying(31))
+            BaseApplication.GetInstance().soundManager.PlaySfx("sfx/dooropen", 0.5, 0.0, 31, 1)
+        Else If Not playSfx
+            BaseApplication.GetInstance().soundManager.StopSfx(31)
+        End
     End
 
     Method OnUpdate:Void(delta#)
@@ -39,17 +57,26 @@ Class Door Extends GameObject Implements DynamicBlock
             End
         Next
 
+        Local oldOpen := open
         If (activated)
-            open = Min(open + SPEED, rect.size.y - SPEED)
+            open = Min(open + SPEED, originalSize.y - SPEED)
             rect.point.y = position.y + open + SPEED
         Else 
             open = Max(open - SPEED, 0.0)            
             rect.point.y = position.y + open + SPEED
         End
+
+        If (open <> oldOpen) Then playSfx = True
+
+        If (open <> oldOpen And Rnd(0, 100) > 80) 
+            level.particleSystem.LaunchParticleDoor(position.x + img.Width() / 2, position.y + originalSize.y)
+        End
+
+        rect.size.y = originalSize.y - open
     End
 
     Method OnRender:Void()
-        MatrixHelper.SetScissorRelative(position, rect.size)
+        MatrixHelper.SetScissorRelative(position, originalSize)
         For Local c := 0 To height-1
             Local frame% = (c > 0)
             DrawImage img, position.x, Int(position.y + (c * img.Height()) + open), frame

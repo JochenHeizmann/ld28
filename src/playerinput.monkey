@@ -15,6 +15,17 @@ Class PlayerInput
     Field firePower#
     Field resetFire? = False
 
+    Method ResetAll:Void()
+        moveLeftOrRight = False
+        right = False
+        left = False
+        jump = False
+        jumpStarted = False
+        fire = False
+        firePower = 0
+        resetFire = False
+    End
+
     Method OnUpdate:Void(delta#)    
         moveLeftOrRight = False
         right = Bool(KeyDown(KEY_RIGHT))

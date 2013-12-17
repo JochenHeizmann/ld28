@@ -27,6 +27,7 @@ Class Hammer
     Field level:Level
 
     Field hittedEnemy:Enemy = Null
+    Field launchSparkle? = False
 
     Method New(l:Level)
         level = l
@@ -46,9 +47,21 @@ Class Hammer
         velocity.x = Clamp(velocity.x, -8.0, 8.0)
         velocity.y = Clamp(velocity.y, -8.0, 8.0)
 
+        If (Abs(level.player.velocity.x) < 0.01)
+            If (Abs(level.player.velocity.y) > 0.2)
+                velocity.x = 0
+                velocity.y *= 2
+            Else If level.player.input.jump
+                velocity.x = 0
+                velocity.y = -1.2 * (THROW_SPEED * power)
+            End
+        End
+
         isInInventory = False
         collectable = False
         rotate = True
+
+        level.player.hammerJustThrownAway = Player.THROW_AWAY_FRAMES
     End
 
     Method LooseIt:Void()
@@ -69,20 +82,33 @@ Class Hammer
     End
 
     Method OnUpdate:Void(delta#)  
+        If (isInInventory) Then Return
+            
         If rotate
             rotation += ROTATION_SPEED
             If (GetRotation() Mod 180 = 0)
                 If ((Abs(velocity.x) < 3) And (Abs(velocity.y) < 3)) Then rotate = False
             End
+            If (level.player.playingIdleAnimation) Then rotation += ROTATION_SPEED * 6 ; rotate = True
         End
 
         hittedEnemy = Null
-        
+        launchSparkle = False
+
+
         CheckXCollision()
         CheckYCollision()
 
+        If (Abs(velocity.x) < 1 And Abs(velocity.y) < 1) Then launchSparkle = False
+
         position.x += velocity.x
         position.y += velocity.y
+
+        If (launchSparkle)
+            level.particleSystem.LaunchParticleSparkle(position.x, position.y)
+            level.player.playingIdleAnimation = False
+            BaseApplication.GetInstance().soundManager.PlaySfx("sfx/hammerhitground")
+        End
     End
 
     Method CheckXCollision:Void()
@@ -111,8 +137,9 @@ Class Hammer
 
         box = level.IntersectRectWithBlock(bbX, bbY, bbW, bbH - 2)
         If (box)
-            If (Window(box.object) And Abs(velocity.x) > 2) Then Window(box.object).OnDestroy(Self)
-            velocity.x = -velocity.x
+            If (DestroyableBlock(box.object) And Abs(velocity.x) > 2) Then DestroyableBlock(box.object).OnDestroy(Self)
+            velocity.x = -velocity.x        
+            launchSparkle = True
         End        
     End
 
@@ -120,9 +147,9 @@ Class Hammer
         velocity.y += Level.GRAVITY
 
         Local y := position.y + velocity.y
-        Local bbX := position.x + img.Width() / 2
+        Local bbX := position.x + img.Width() / 2 - 2
         Local bbY := y
-        Local bbW := 1
+        Local bbW := 4
         Local bbH := img.Height()
 
         Local box:CollisionZone
@@ -143,11 +170,13 @@ Class Hammer
 
         box = level.IntersectRectWithBlock(bbX, bbY, bbW, bbH + 1)
         If (box)
-            If (Window(box.object) And Abs(velocity.y) > 2) Then Window(box.object).OnDestroy(Self)
+            If (DestroyableBlock(box.object) And Abs(velocity.y) > 2) Then DestroyableBlock(box.object).OnDestroy(Self)
             velocity.y = -velocity.y * RESTITUTION
             If (Abs(velocity.y) < Level.GRAVITY)
                 velocity.y = 0
                 position.y = box.rect.point.y - img.Height()
+            Else
+                launchSparkle = True
             End
         End
     End
