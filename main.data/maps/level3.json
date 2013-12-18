@@ -1817,20 +1817,6 @@
                  "width":0,
                  "x":3040,
                  "y":592
-                }, 
-                {
-                 "gid":32,
-                 "height":0,
-                 "name":"",
-                 "properties":
-                    {
-
-                    },
-                 "type":"",
-                 "visible":true,
-                 "width":0,
-                 "x":1856,
-                 "y":832
                 }],
          "opacity":1,
          "type":"objectgroup",

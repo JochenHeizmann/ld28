@@ -29,9 +29,18 @@ Class Hammer
     Field hittedEnemy:Enemy = Null
     Field launchSparkle? = False
 
+    Field rect:Rect = New Rect()
+
     Method New(l:Level)
         level = l
     End    
+
+    Method UpdateBoundingBox:Void()
+        rect.point.x = position.x - 4
+        rect.point.y = position.y
+        rect.size.x = 8
+        rect.size.y = 8
+    End
 
     Method ThrowIt:Void()
         If (Not isInInventory) Then Return
@@ -96,6 +105,7 @@ Class Hammer
         launchSparkle = False
 
 
+        UpdateBoundingBox()
         CheckXCollision()
         CheckYCollision()
 
@@ -114,71 +124,74 @@ Class Hammer
     Method CheckXCollision:Void()
         velocity.x *= FRICTION
 
-        Local x := position.x + velocity.x
-
-        Local bbX := x + img.Width() / 2
-        Local bbY := position.y
-        Local bbW := 1
-        Local bbH := img.Height()
+        Local bbX := rect.point.x + velocity.x
+        Local bbY := rect.point.y
+        Local bbW := rect.size.x
+        Local bbH := rect.size.y
 
         Local box:CollisionZone
 
+        Local changeVelocity? = False
         If (level.player.invincible <= 0)
             box = level.enemyZones.IntersectRect(bbX, bbY, bbW, bbH - 2)
             If (box And Enemy(box.object))
                 hittedEnemy = Enemy(box.object)
                 Enemy(box.object).OnHit(Self)
-                velocity.x = -velocity.x
+                changeVelocity = True
             End
         End
 
-        x = position.x + velocity.x
-        bbX = x + img.Width() / 2
+        Local boxes := level.IntersectAllRectsWithBlock(bbX, bbY, bbW, bbH - 2)
+        For Local box := EachIn boxes
+            If (box)
+                If (DestroyableBlock(box.object) And Abs(velocity.x) > 2) Then DestroyableBlock(box.object).OnDestroy(Self)
+                launchSparkle = True
+                changeVelocity = True
+            End        
+        Next
 
-        box = level.IntersectRectWithBlock(bbX, bbY, bbW, bbH - 2)
-        If (box)
-            If (DestroyableBlock(box.object) And Abs(velocity.x) > 2) Then DestroyableBlock(box.object).OnDestroy(Self)
-            velocity.x = -velocity.x        
-            launchSparkle = True
-        End        
+        If (changeVelocity) Then velocity.x = -velocity.x
     End
 
     Method CheckYCollision:Void()
         velocity.y += Level.GRAVITY
 
-        Local y := position.y + velocity.y
-        Local bbX := position.x + img.Width() / 2 - 2
-        Local bbY := y
-        Local bbW := 4
-        Local bbH := img.Height()
+        Local bbX := rect.point.x
+        Local bbY := rect.point.y + velocity.y
+        Local bbW := rect.size.x
+        Local bbH := rect.size.y
 
         Local box:CollisionZone
 
+        Local changeVelocity? = False
+
         If (level.player.invincible <= 0)
-            box = level.enemyZones.IntersectRect(bbX, bbY, bbW, bbH - 2)
+            box = level.enemyZones.IntersectRect(bbX, bbY, bbW, bbH)
             If (box And Enemy(box.object))
                 If (hittedEnemy <> Enemy(box.object))
                     ' dont hit enemy twice
                     Enemy(box.object).OnHit(Self)
                 End
-                velocity.y = -velocity.y
+                changeVelocity = True
             End
         End
 
-        y = position.y + velocity.y
-        bbY = y
-
-        box = level.IntersectRectWithBlock(bbX, bbY, bbW, bbH + 1)
-        If (box)
-            If (DestroyableBlock(box.object) And Abs(velocity.y) > 2) Then DestroyableBlock(box.object).OnDestroy(Self)
-            velocity.y = -velocity.y * RESTITUTION
-            If (Abs(velocity.y) < Level.GRAVITY)
-                velocity.y = 0
-                position.y = box.rect.point.y - img.Height()
-            Else
-                launchSparkle = True
+        Local boxes := level.IntersectAllRectsWithBlock(bbX, bbY, bbW, bbH)
+        For box = EachIn boxes
+            If (box)
+                If (DestroyableBlock(box.object) And Abs(velocity.y) > 2) Then DestroyableBlock(box.object).OnDestroy(Self)
+                changeVelocity = True
+'                velocity.y = -velocity.y * RESTITUTION
+                If (Abs(velocity.y * RESTITUTION) < Level.GRAVITY)
+                    velocity.y = 0
+                    position.y = box.rect.point.y - 8
+                Else
+                    launchSparkle = True
+                End
             End
-        End
+        Next
+
+        If (changeVelocity) Then velocity.y = -velocity.y * RESTITUTION
     End
 
     Method GetRotation#()
@@ -193,5 +206,6 @@ Class Hammer
             DrawImage img, 0, Cos(GetRotation()) * 4
             PopMatrix()
         End
+        'DrawRect rect.point.x, rect.point.y, rect.size.x, rect.size.y
     End
 End

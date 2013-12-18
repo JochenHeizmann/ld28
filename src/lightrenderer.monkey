@@ -18,6 +18,10 @@ Class LightRenderer Implements LayerRenderer
     End
 
     Method OnRender:Void(tileId%, tileImage:Image, x#, y#, gobalId%, gx%, gy%)
+        #if TARGET="flash"
+            DrawImage tileImage, x, y, tileId
+            Return
+        #end
         Local distance# = 0.0
         Local alpha# = 0.0
 
